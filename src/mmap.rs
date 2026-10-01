@@ -19,8 +19,13 @@ pub struct MappedFile {
 
 impl MappedFile {
     pub fn open(path: &str) -> Result<Self, AppError> {
-        let file = File::open(path)?;
-        let len = file.metadata()?.len() as usize;
+        let to_open_err = |source| AppError::Open {
+            path: path.to_string(),
+            source,
+        };
+
+        let file = File::open(path).map_err(to_open_err)?;
+        let len = file.metadata().map_err(to_open_err)?.len() as usize;
 
         // mmap() of a zero-length region is undefined behavior on POSIX,
         // so skip the syscall entirely and represent it as an empty view.
@@ -42,7 +47,11 @@ impl MappedFile {
                 file.as_fd(),
                 0,
             )
-        }?;
+        }
+        .map_err(|source| AppError::Mmap {
+            path: path.to_string(),
+            source,
+        })?;
 
         Ok(Self {
             _file: file,
